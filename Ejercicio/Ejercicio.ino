@@ -10,15 +10,13 @@
 #include <hal_st_lld.h>
 
 /* ======================================================================= *\
- *  Ejemplo ChibiOS-3
- *  Este ejemplo muestra cómo estimar la carga computacional de cada hebra
+ *  Ejercicio - ChibiOS/RT
  *
- *  IMPORTANTE: en ChRt/src/rt/templates/chconf.h
- *    - CH_DBG_THREADS_PROFILING debe activarse (TRUE) 
- *    - CH_CFG_NO_IDLE_THREAD debe activarse (TRUE)
+ *  Gerad Leopoldo Guzmán Hernández
  *
- *  Requiere el uso de la librería ChRt de Bill Greiman
- *    https://github.com/greiman/ChRt
+ *  Objetivos:
+ *  - Balancear la carga del procesador y llevarla a su condición óptima
+ *    La carga óptima del procesador en este caso es del 85%
  *
  *  Asignatura (GII-IoT)
 \* ======================================================================= */ 
@@ -29,6 +27,12 @@
 // Parametrization
 //------------------------------------------------------------------------------
 #define USE_DOUBLE    FALSE   // Change to TRUE to use double precision (heavier)
+#define OPTIMUN_LOAD  85.0
+
+#define THREAD_PERIOD_1 200
+#define THREAD_PERIOD_2 100
+#define THREAD_PERIOD_3 50
+#define TOTAL_WORKING_TIME  THREAD_PERIOD_1 + THREAD_PERIOD_2 + THREAD_PERIOD_3
 
 #define CYCLE_MS      1000
 #define NUM_THREADS   5  // Three working threads + loadEstimator (top) + 
@@ -39,7 +43,7 @@ char thread_name[NUM_THREADS][15] = {  "top",
                                        "worker_1", "worker_2", "worker_3",
                                        "idle" };
 
-volatile uint32_t threadPeriod_ms[NUM_THREADS] = { CYCLE_MS, 200, 100, 200, 0 };
+volatile uint32_t threadPeriod_ms[NUM_THREADS] = { CYCLE_MS, THREAD_PERIOD_1, THREAD_PERIOD_2, THREAD_PERIOD_3, 0 };
 volatile int threadLoad[NUM_THREADS] = {0, 50, 50, 50, 0};
 
 volatile uint32_t threadEffectivePeriod_ms[NUM_THREADS] = { 0, 0, 0, 0, 0 };
