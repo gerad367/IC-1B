@@ -28,11 +28,16 @@
 //------------------------------------------------------------------------------
 #define USE_DOUBLE    FALSE   // Change to TRUE to use double precision (heavier)
 #define OPTIMUN_LOAD  85.0
+#define OPT_IDLE      100.0 - OPTIMUN_LOAD
+
+#define PID_K_P 10
+#define PID_K_I 1
+#define PID_K_D 1
 
 #define THREAD_PERIOD_1 200
 #define THREAD_PERIOD_2 100
 #define THREAD_PERIOD_3 50
-#define TOTAL_WORKING_TIME  THREAD_PERIOD_1 + THREAD_PERIOD_2 + THREAD_PERIOD_3
+const int TOTAL_WORKING_TIME = THREAD_PERIOD_1 + THREAD_PERIOD_2 + THREAD_PERIOD_3;
 
 #define CYCLE_MS      1000
 #define NUM_THREADS   5  // Three working threads + loadEstimator (top) + 
@@ -70,6 +75,7 @@ systemLoad_t sysLoad;
 // Load estimator (top)
 // High priority thread that executes periodically
 //------------------------------------------------------------------------------
+MUTEX_DECL(load_mtx);
 BSEMAPHORE_DECL(top_sem, true);
 static THD_WORKING_AREA(waTop, 4096);
 
@@ -138,6 +144,25 @@ static THD_FUNCTION(top, arg)
     }
     SerialUSB.println();
 
+    // Calculate error and corrections
+    float error = OPT_IDLE - sysLoad.threadLoad[4].loadPerCycle_per;
+    // float error_sum
+    // float error_dif
+
+    float pid_proportional = error * PID_K_P;
+    // float pid_integral
+    // float pid_derivative
+    float pid_correction = (pid_proportional) / TOTAL_WORKING_TIME; // + pid_integral + pid_derivative
+    SerialUSB.print("PID Correction: ");
+    SerialUSB.println(pid_correction);
+
+    // Lock the mutex when accessing shared memory areas
+    chMtxLock(&load_mtx);
+    for (int i = 1; i < 4; i++) {
+      threadLoad[i] -= (int) (pid_correction * threadPeriod_ms[i]);
+    }
+    chMtxUnlock(&load_mtx);
+
     // Switch off the LED
     digitalWrite(LED_BUILTIN, LOW);
   }
@@ -161,7 +186,10 @@ static THD_FUNCTION(worker, arg)
     systime_t beginTime_i = chVTGetSystemTimeX();
     threadEffectivePeriod_ms[worker_ID] = TIME_I2MS(beginTime_i - lastBeginTime_i);
 
+    // Lock the mutex when accessing shared memory areas
+    chMtxLock(&load_mtx);
     int niter = threadLoad[worker_ID];
+    chMtxUnlock(&load_mtx);
     #if USE_DOUBLE
       double num = 10;
     #else
