@@ -30,9 +30,8 @@
 #define OPTIMUN_LOAD  85.0
 #define OPT_IDLE      100.0 - OPTIMUN_LOAD
 
-#define PID_K_P 10
-#define PID_K_I 1
-#define PID_K_D 1
+#define PD_K_P 5
+#define PD_K_D 1
 
 #define THREAD_PERIOD_1 200
 #define THREAD_PERIOD_2 100
@@ -53,6 +52,8 @@ volatile int threadLoad[NUM_THREADS] = {0, 50, 50, 50, 0};
 
 volatile uint32_t threadEffectivePeriod_ms[NUM_THREADS] = { 0, 0, 0, 0, 0 };
 volatile uint32_t threadCycle_ms[NUM_THREADS] = { 0, 0, 0, 0, 0 };
+
+float load_error, load_error_prev = 0;
 
 // Struct to measure the cpu load using the ticks consumed by each thread
 typedef struct {
@@ -145,21 +146,22 @@ static THD_FUNCTION(top, arg)
     SerialUSB.println();
 
     // Calculate error and corrections
-    float error = OPT_IDLE - sysLoad.threadLoad[4].loadPerCycle_per;
-    // float error_sum
-    // float error_dif
+    load_error = OPT_IDLE - sysLoad.threadLoad[4].loadPerCycle_per;
+    float load_error_dif = load_error - load_error_prev;
+    load_error_prev = load_error;
 
-    float pid_proportional = error * PID_K_P;
-    // float pid_integral
-    // float pid_derivative
-    float pid_correction = (pid_proportional) / TOTAL_WORKING_TIME; // + pid_integral + pid_derivative
-    SerialUSB.print("PID Correction: ");
-    SerialUSB.println(pid_correction);
+    float pd_proportional = load_error * PD_K_P;
+    float pd_derivative = load_error_dif * PD_K_D;
+    float pd_correction = (pd_proportional + pd_derivative) / TOTAL_WORKING_TIME;
+    SerialUSB.print("Proportional correction: ");
+    SerialUSB.println(pd_proportional);
+    SerialUSB.print("Derivative correction: ");
+    SerialUSB.println(pd_derivative);
 
     // Lock the mutex when accessing shared memory areas
     chMtxLock(&load_mtx);
     for (int i = 1; i < 4; i++) {
-      threadLoad[i] -= (int) (pid_correction * threadPeriod_ms[i]);
+      threadLoad[i] -= (int) (pd_correction * threadPeriod_ms[i]);
     }
     chMtxUnlock(&load_mtx);
 
